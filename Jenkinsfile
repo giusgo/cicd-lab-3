@@ -1,8 +1,8 @@
 pipeline {
 	agent any
-	environtment {
+	environment {
 		IMAGE_MAIN = "nodemain:v1.0"
-		IMAGE_DEV = "nodedev:1.0"
+		IMAGE_DEV = "nodedev:v1.0"
 	}
 
 	stages {
