@@ -1,5 +1,5 @@
 pipeline {
-	agent none
+	agent any
 
 	environment {
         IMAGE_MAIN = "nodemain:v1.0"
@@ -10,19 +10,17 @@ pipeline {
 
 	tools {
         nodejs 'node'
+        docker 'docker'
     }
 
 	stages {
 		stage('Checkout') {
-            agent any
             steps {
                 checkout scm
             }
         }
 
         stage('Build') {
-            agent { label 'node' }
-            tools { nodejs 'node' }
             steps {
                 echo "Building Node.js app..."
                 sh 'npm install'
@@ -30,16 +28,13 @@ pipeline {
         }
 
         stage('Test') {
-            agent { label 'node' }
-            tools { nodejs 'node' }
             steps {
                 echo "Running tests..."
                 sh 'npm test'
             }
         }
 
-        stage('Build Docker Image') {
-            agent { label 'docker' }
+        stage('Build Docker image') {
             steps {
                 script {
                     def imageName = (env.BRANCH_NAME == 'main') ? env.IMAGE_MAIN : env.IMAGE_DEV
@@ -50,7 +45,6 @@ pipeline {
         }
 
         stage('Deploy') {
-            agent { label 'docker' }
             steps {
                 script {
                     def port = (env.BRANCH_NAME == 'main') ? env.PORT_MAIN : env.PORT_DEV
