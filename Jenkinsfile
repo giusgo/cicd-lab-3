@@ -1,9 +1,12 @@
 pipeline {
-	agent any
+	agent none
+
 	environment {
-		IMAGE_MAIN = "nodemain:v1.0"
-		IMAGE_DEV = "nodedev:v1.0"
-	}
+        IMAGE_MAIN = "nodemain:v1.0"
+        IMAGE_DEV  = "nodedev:v1.0"
+        PORT_MAIN  = "3000"
+        PORT_DEV   = "3001"
+    }
 
 	tools {
         nodejs 'node'
@@ -11,56 +14,56 @@ pipeline {
 
 	stages {
 		stage('Checkout') {
-			steps {
-				checkout scm
-			}
-		}
-
-		stage('Build') {
+            agent any
             steps {
-                echo "Installing dependencies..."
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            agent { label 'node' }
+            tools { nodejs 'node' }
+            steps {
+                echo "Building Node.js app..."
                 sh 'npm install'
             }
         }
 
         stage('Test') {
+            agent { label 'node' }
+            tools { nodejs 'node' }
             steps {
                 echo "Running tests..."
                 sh 'npm test'
             }
         }
 
-        stage('Build Docker image') {
+        stage('Build Docker Image') {
+            agent { label 'docker' }
             steps {
                 script {
-                    if (env.BRANCH_NAME == 'main') {
-                        sh "docker build -t ${IMAGE_MAIN} ."
-                    } else if (env.BRANCH_NAME == 'dev') {
-                        sh "docker build -t ${IMAGE_DEV} ."
-                    } else {
-                        error "Unsupported branch: ${env.BRANCH_NAME}"
-                    }
+                    def imageName = (env.BRANCH_NAME == 'main') ? env.IMAGE_MAIN : env.IMAGE_DEV
+                    echo "Building Docker image: ${imageName}"
+                    sh "docker build -t ${imageName} ."
                 }
             }
         }
 
         stage('Deploy') {
+            agent { label 'docker' }
             steps {
                 script {
-                    // Stop and remove old containers ONLY from the node apps
-                    sh """
-                    docker ps -q --filter "ancestor=nodemain:v1.0" | xargs -r docker stop
-                    docker ps -q --filter "ancestor=nodedev:v1.0" | xargs -r docker stop
-                    docker ps -a -q --filter "ancestor=nodemain:v1.0" | xargs -r docker rm
-                    docker ps -a -q --filter "ancestor=nodedev:v1.0" | xargs -r docker rm
-                    """
+                    def port = (env.BRANCH_NAME == 'main') ? env.PORT_MAIN : env.PORT_DEV
+                    def imageName = (env.BRANCH_NAME == 'main') ? env.IMAGE_MAIN : env.IMAGE_DEV
 
-                    echo "Running new container..."
-                    if (env.BRANCH_NAME == 'main') {
-                        sh 'docker run -d --expose 3000 -p 3000:3000 nodemain:v1.0'
-                    } else if (env.BRANCH_NAME == 'dev') {
-                        sh 'docker run -d --expose 3001 -p 3001:3000 nodedev:v1.0'
-                    }
+                    echo "Deploying ${imageName} on port ${port}..."
+
+                    // stop and remove old containers (only matching image)
+                    sh "docker ps -q --filter ancestor=${imageName} | xargs -r docker stop"
+                    sh "docker ps -aq --filter ancestor=${imageName} | xargs -r docker rm"
+
+                    // run new container
+                    sh "docker run -d -p ${port}:3000 ${imageName}"
                 }
             }
         }
