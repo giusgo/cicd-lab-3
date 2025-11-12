@@ -5,6 +5,10 @@ pipeline {
 		IMAGE_DEV = "nodedev:v1.0"
 	}
 
+	tools {
+        nodejs 'node'
+    }
+
 	stages {
 		stage('Checkout') {
 			steps {
